@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Person } from '../types/Person';
 import { SearchLink } from './SearchLink';
 import { getSearchWith } from '../utils/searchHelper';
@@ -11,12 +11,16 @@ type SortField = 'name' | 'sex' | 'born' | 'died';
 
 export const PeopleTable = ({ people }: Props) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { slug } = useParams();
 
-  const query = searchParams.get('query')?.toLowerCase() || '';
+  const query = searchParams.get('query')?.trim().toLowerCase() || '';
   const sex = searchParams.get('sex');
   const centuries = searchParams.getAll('centuries');
   const sort = searchParams.get('sort') as SortField | null;
   const order = searchParams.get('order');
+
+  const findParent = (parentName: string | null | undefined) =>
+    parentName ? people.find(p => p.name === parentName) : undefined;
 
   const filteredPeople = people.filter(person => {
     const matchesSex = !sex || person.sex === sex;
@@ -29,7 +33,7 @@ export const PeopleTable = ({ people }: Props) => {
 
     const matchesCentury =
       centuries.length === 0 ||
-      centuries.includes(String(Math.floor(person.born / 100) + 1));
+      centuries.includes(String(Math.ceil(person.born / 100)));
 
     return matchesSex && matchesQuery && matchesCentury;
   });
@@ -40,20 +44,21 @@ export const PeopleTable = ({ people }: Props) => {
     sortedPeople.sort((person1, person2) => {
       let result = 0;
 
-      if (sort === 'name') {
-        result = person1.name.localeCompare(person2.name);
-      }
-
-      if (sort === 'sex') {
-        result = person1.sex.localeCompare(person2.sex);
-      }
-
-      if (sort === 'born') {
-        result = person1.born - person2.born;
-      }
-
-      if (sort === 'died') {
-        result = person1.died - person2.died;
+      switch (sort) {
+        case 'name':
+          result = person1.name.localeCompare(person2.name);
+          break;
+        case 'sex':
+          result = person1.sex.localeCompare(person2.sex);
+          break;
+        case 'born':
+          result = person1.born - person2.born;
+          break;
+        case 'died':
+          result = person1.died - person2.died;
+          break;
+        default:
+          break;
       }
 
       return order === 'desc' ? -result : result;
@@ -63,10 +68,7 @@ export const PeopleTable = ({ people }: Props) => {
   const handleSort = (field: SortField) => {
     if (sort !== field) {
       setSearchParams(
-        getSearchWith(searchParams, {
-          sort: field,
-          order: null,
-        }),
+        getSearchWith(searchParams, { sort: field, order: null }),
       );
 
       return;
@@ -74,21 +76,13 @@ export const PeopleTable = ({ people }: Props) => {
 
     if (!order) {
       setSearchParams(
-        getSearchWith(searchParams, {
-          sort: field,
-          order: 'desc',
-        }),
+        getSearchWith(searchParams, { sort: field, order: 'desc' }),
       );
 
       return;
     }
 
-    setSearchParams(
-      getSearchWith(searchParams, {
-        sort: null,
-        order: null,
-      }),
-    );
+    setSearchParams(getSearchWith(searchParams, { sort: null, order: null }));
   };
 
   const getSortIcon = (field: SortField) => {
@@ -99,6 +93,13 @@ export const PeopleTable = ({ people }: Props) => {
     return order === 'desc' ? 'fas fa-sort-down' : 'fas fa-sort-up';
   };
 
+  const columns: { title: string; field: SortField }[] = [
+    { title: 'Name', field: 'name' },
+    { title: 'Sex', field: 'sex' },
+    { title: 'Born', field: 'born' },
+    { title: 'Died', field: 'died' },
+  ];
+
   return (
     <table
       data-cy="peopleTable"
@@ -106,107 +107,84 @@ export const PeopleTable = ({ people }: Props) => {
     >
       <thead>
         <tr>
-          <th>
-            <span className="is-flex is-flex-wrap-nowrap">
-              Name
-              <button
-                type="button"
-                className="button is-white p-0"
-                onClick={() => handleSort('name')}
-              >
-                <span className="icon">
-                  <i className={getSortIcon('name')} />
-                </span>
-              </button>
-            </span>
-          </th>
-
-          <th>
-            <span className="is-flex is-flex-wrap-nowrap">
-              Sex
-              <button
-                type="button"
-                className="button is-white p-0"
-                onClick={() => handleSort('sex')}
-              >
-                <span className="icon">
-                  <i className={getSortIcon('sex')} />
-                </span>
-              </button>
-            </span>
-          </th>
-
-          <th>
-            <span className="is-flex is-flex-wrap-nowrap">
-              Born
-              <button
-                type="button"
-                className="button is-white p-0"
-                onClick={() => handleSort('born')}
-              >
-                <span className="icon">
-                  <i className={getSortIcon('born')} />
-                </span>
-              </button>
-            </span>
-          </th>
-
-          <th>
-            <span className="is-flex is-flex-wrap-nowrap">
-              Died
-              <button
-                type="button"
-                className="button is-white p-0"
-                onClick={() => handleSort('died')}
-              >
-                <span className="icon">
-                  <i className={getSortIcon('died')} />
-                </span>
-              </button>
-            </span>
-          </th>
+          {columns.map(({ title, field }) => (
+            <th key={field}>
+              <span className="is-flex is-flex-wrap-nowrap">
+                {title}
+                <button
+                  type="button"
+                  className="button is-white p-0"
+                  onClick={() => handleSort(field)}
+                >
+                  <span className="icon">
+                    <i className={getSortIcon(field)} />
+                  </span>
+                </button>
+              </span>
+            </th>
+          ))}
 
           <th>Mother</th>
+
           <th>Father</th>
         </tr>
       </thead>
 
       <tbody>
-        {sortedPeople.map(person => (
-          <tr key={person.slug} data-cy="person">
-            <td>
-              <SearchLink to={`/people/${person.slug}`} params={{}}>
-                {person.name}
-              </SearchLink>
-            </td>
+        {sortedPeople.map(person => {
+          const mother = person.mother || findParent(person.motherName);
+          const father = person.father || findParent(person.fatherName);
 
-            <td>{person.sex}</td>
-
-            <td>{person.born}</td>
-
-            <td>{person.died}</td>
-
-            <td>
-              {person.mother ? (
-                <SearchLink to={`/people/${person.mother.slug}`} params={{}}>
-                  {person.motherName}
+          return (
+            <tr
+              key={person.slug}
+              data-cy="person"
+              className={person.slug === slug ? 'has-background-warning' : ''}
+            >
+              <td>
+                <SearchLink
+                  to={`/people/${person.slug}`}
+                  params={{}}
+                  className={
+                    person.sex === 'f' ? 'has-text-danger' : 'has-text-link'
+                  }
+                >
+                  {person.name}
                 </SearchLink>
-              ) : (
-                person.motherName || '-'
-              )}
-            </td>
+              </td>
 
-            <td>
-              {person.father ? (
-                <SearchLink to={`/people/${person.father.slug}`} params={{}}>
-                  {person.fatherName}
-                </SearchLink>
-              ) : (
-                person.fatherName || '-'
-              )}
-            </td>
-          </tr>
-        ))}
+              <td>{person.sex}</td>
+
+              <td>{person.born}</td>
+
+              <td>{person.died}</td>
+
+              <td>
+                {mother ? (
+                  <SearchLink
+                    to={`/people/${mother.slug}`}
+                    params={{}}
+                    className="has-text-danger"
+                  >
+                    {mother.name}
+                  </SearchLink>
+                ) : (
+                  person.motherName || '-'
+                )}
+              </td>
+
+              <td>
+                {father ? (
+                  <SearchLink to={`/people/${father.slug}`} params={{}}>
+                    {father.name}
+                  </SearchLink>
+                ) : (
+                  person.fatherName || '-'
+                )}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
