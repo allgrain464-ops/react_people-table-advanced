@@ -12,6 +12,7 @@ export const Navbar = () => {
         <div className="navbar-brand">
           <NavLink
             to="/"
+            end
             className={({ isActive }) =>
               `navbar-item ${isActive ? 'has-background-grey-lighter' : ''}`
             }
